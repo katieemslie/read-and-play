@@ -2,7 +2,7 @@
 <html lang="en-AU">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Read & Play – piano prototype</title>
 <style>
   :root{
@@ -56,46 +56,78 @@
   .chip .st{color:#d79a00;margin-left:4px;letter-spacing:1px;font-size:13px}
   #confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:11;display:none}
   .done .tricky{font-size:13px;color:var(--muted);margin:-6px 0 14px}
+  .side-a,.main,.side-b{display:contents}
+  .progress{height:8px;background:#efe6d6;border-radius:99px;margin:6px 8px 2px;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .2s}
+
+  /* ---- iPad / tablet in landscape ---- */
+  @media (min-width:900px) and (orientation:landscape){
+    html,body{height:100%;overflow:hidden}
+    .app{max-width:none;height:100vh;height:100dvh;padding:16px 18px;display:grid;grid-template-columns:310px 1fr;grid-template-rows:auto 1fr;column-gap:20px;overflow:hidden}
+    .side-a{display:block;grid-column:1;grid-row:1}
+    .side-b{display:block;grid-column:1;grid-row:2;overflow:auto;min-height:0;padding-bottom:4px}
+    .main{display:flex;flex-direction:column;grid-column:2;grid-row:1/3;min-height:0}
+    h1{font-size:24px;margin:0 2px 12px}
+    .who{gap:8px}
+    .who button{padding:6px 10px;min-height:56px;font-size:18px}
+    .songs{flex-direction:column;flex-wrap:nowrap;gap:8px;margin-bottom:12px}
+    .chip{border-radius:16px;text-align:left;font-size:16px;padding:11px 16px;min-height:50px;border-width:3px}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .controls .btn{font-size:16px;min-height:52px;padding:8px 10px}
+    #restart{grid-column:1/-1}
+    .note{display:none}
+    .main .card{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:14px 16px}
+    .staffwrap{padding:0}
+    .staffwrap svg{width:100%;height:auto;max-height:calc((100dvh - 430px)/2);margin:0 auto}
+    .status{min-height:64px;font-size:26px}
+    .status .sub{font-size:15px}
+    .kbwrap{margin:0}
+    .kb{height:clamp(170px,31dvh,300px)}
+    .key.white{font-size:22px;padding-bottom:14px}
+  }
   @media (prefers-reduced-motion:reduce){.key.target::after,.key.miss{animation:none}}
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>Read &amp; Play <small>prototype</small></h1>
-
-  <div class="who" id="who" role="group" aria-label="Who is playing?"></div>
-
-  <div class="songs" id="songs" role="group" aria-label="Choose a song"></div>
-
-  <div class="card">
-    <div class="staffwrap" id="staff" aria-label="Sheet music"></div>
-    <div class="legend"><span><i>●</i>1 beat</span><span><i>○</i>2 beats (hold)</span><span><i>◯</i>4 beats (hold)</span></div>
+  <div class="side-a">
+    <h1>Read &amp; Play <small>prototype</small></h1>
+    <div class="who" id="who" role="group" aria-label="Who is playing?"></div>
+    <div class="songs" id="songs" role="group" aria-label="Choose a song"></div>
   </div>
 
-  <div class="status" id="status" aria-live="polite"></div>
-
-  <div class="kbwrap"><div class="kb" id="kb"></div></div>
-
-  <div class="controls">
-    <button class="btn primary" id="listen">▶ Listen first</button>
-    <button class="btn" id="mic" aria-pressed="false">🎤 Listen to my piano</button>
-  </div>
-  <div class="controls">
-    <button class="btn" id="helpers" aria-pressed="true">🌈 Helpers</button>
-    <button class="btn" id="names" aria-pressed="true">🔤 Note names</button>
-    <button class="btn" id="restart">↺ Start over</button>
+  <div class="main">
+    <div class="card">
+      <div class="staffwrap" id="staff" aria-label="Sheet music"></div>
+      <div class="legend"><span><i>●</i>1 beat</span><span><i>○</i>2 beats (hold)</span><span><i>◯</i>4 beats (hold)</span></div>
+      <div class="progress" id="prog"><i></i></div>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="kbwrap"><div class="kb" id="kb"></div></div>
   </div>
 
-  <div class="mic" id="micbox" hidden>
-    <div id="micmsg"></div>
-    <div class="meter"><div id="level"></div></div>
-    <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:700">Sensitivity
-      <input type="range" id="sens" min="1" max="12" value="6" style="flex:1"></label>
-    <div id="heard"></div>
-    <div id="dbg" style="font-size:11px;color:#a59bb3;margin-top:2px"></div>
-  </div>
+  <div class="side-b">
+    <div class="controls">
+      <button class="btn primary" id="listen">▶ Listen first</button>
+      <button class="btn" id="mic" aria-pressed="false">🎤 Listen to my piano</button>
+    </div>
+    <div class="controls">
+      <button class="btn" id="helpers" aria-pressed="true">🌈 Helpers</button>
+      <button class="btn" id="names" aria-pressed="true">🔤 Note names</button>
+      <button class="btn" id="restart">↺ Start over</button>
+    </div>
 
-  <p class="note">Tap the keys on screen, or switch on the microphone and play a real piano or keyboard nearby. Helpers colour-match each note to its key; switch them off for a challenge.</p>
+    <div class="mic" id="micbox" hidden>
+      <div id="micmsg"></div>
+      <div class="meter"><div id="level"></div></div>
+      <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:700">Sensitivity
+        <input type="range" id="sens" min="1" max="12" value="6" style="flex:1"></label>
+      <div id="heard"></div>
+      <div id="dbg" style="font-size:11px;color:#a59bb3;margin-top:2px"></div>
+    </div>
+
+    <p class="note">Tap the keys on screen, or switch on the microphone and play a real piano or keyboard nearby. Helpers colour-match each note to its key; switch them off for a challenge.</p>
+  </div>
 </div>
 
 <div class="done" id="done"><div class="box">
@@ -144,7 +176,7 @@ function parseSong(s){
 /* ---------- audio: a soft piano-ish tone ---------- */
 let ac=null;
 function audio(){
-  if(!ac){ const C=window.AudioContext||window.webkitAudioContext; ac=new C(); }
+  if(!ac){ const C=window.AudioContext||window.webkitAudioContext; try{ ac=new C({latencyHint:'interactive'}); }catch(e){ ac=new C(); } }
   if(ac.state==='suspended') ac.resume();
   return ac;
 }
@@ -167,10 +199,17 @@ function tone(midi,dur,vol){
 const BOTTOM_Y=70, STEP_PX=5, X0=62, SPACING=35;
 const yOf = step => BOTTOM_Y-(step-2)*STEP_PX;
 
+const wideMQ = window.matchMedia('(min-width: 900px) and (orientation: landscape)');
 function renderStaff(){
   const lines = SONGS[songIdx].lines.length;
+  let first=0, last=lines-1;
+  if(wideMQ.matches && notes.length){
+    // tablet landscape: big staves, showing the line being played and the one after it
+    const ref = Math.min(listening ? Math.max(listenIdx,0) : idx, notes.length-1);
+    first = notes[ref].line; last = Math.min(first+1, lines-1);
+  }
   let html='';
-  for(let li=0; li<lines; li++){
+  for(let li=first; li<=last; li++){
     const ln = notes.filter(n=>n.line===li);
     let hl='', body='';
     ln.forEach(n=>{
@@ -256,7 +295,8 @@ function updateStatus(){
   if(showNames) setStatus(`Play the note ${nm}`, `Note ${idx+1} of ${notes.length}${hold}`);
   else setStatus('Find this note on the keys', `Note ${idx+1} of ${notes.length}${hold}`);
 }
-function render(){ renderStaff(); refreshKeys(); updateStatus(); }
+function render(){ renderStaff(); refreshKeys(); updateStatus(); $('prog').firstElementChild.style.width=(notes.length?Math.min(100,idx/notes.length*100):0)+'%'; }
+let rzT=null; window.addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(render,120); });
 
 function press(m, src){
   if(listening) return;
@@ -390,6 +430,7 @@ function startListen(){
 
 /* ---------- microphone: pitch detection ---------- */
 // PITCH-START
+let lastClarity=0;
 function detectPitch(buf, sr, minRms){
   const SIZE=buf.length; let rms=0, peak=0;
   for(let i=0;i<SIZE;i++){ rms+=buf[i]*buf[i]; if(Math.abs(buf[i])>peak) peak=Math.abs(buf[i]); }
@@ -405,6 +446,7 @@ function detectPitch(buf, sr, minRms){
   let T0=mp; if(T0<=0||T0>=N-1) return -1;
   const x1=c[T0-1], x2=c[T0], x3=c[T0+1];
   const a=(x1+x3-2*x2)/2, bb=(x3-x1)/2; if(a) T0=T0-bb/(2*a);
+  lastClarity = (c[0]>0 && mp<N) ? (mx/c[0])*(N/(N-mp)) : 0;  // 1.0 = perfectly periodic
   return sr/T0;
 }
 // PITCH-END
@@ -419,9 +461,9 @@ async function startMic(){
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('unavailable');
     const a=audio();
-    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,latency:0}});
     micSrc=a.createMediaStreamSource(micStream);
-    analyser=a.createAnalyser(); analyser.fftSize=2048; micSrc.connect(analyser);
+    analyser=a.createAnalyser(); analyser.fftSize=1024; micSrc.connect(analyser);
     micBuf=new Float32Array(analyser.fftSize);
     micOn=true; armed=true; cand=[]; prevRms=0; noise=0.003; lastMidi=-1;
     $('mic').setAttribute('aria-pressed','true'); $('mic').textContent='🎤 Listening… (tap to stop)';
@@ -444,7 +486,7 @@ function stopMic(){
 function micTick(){
   if(!micOn) return;
   requestAnimationFrame(micTick);
-  const now=performance.now(); if(now-lastTick<40) return; lastTick=now;
+  const now=performance.now(); if(now-lastTick<14) return; lastTick=now;
   analyser.getFloatTimeDomainData(micBuf);
   let s=0; for(let i=0;i<micBuf.length;i++) s+=micBuf[i]*micBuf[i];
   const rms=Math.sqrt(s/micBuf.length);
@@ -462,14 +504,20 @@ function micTick(){
   const m=Math.round(69+12*Math.log2(f/440));
   if(m<48||m>96) return;
   cand.push(m); if(cand.length>3) cand.shift();
-  if(cand.length===3 && cand[0]===cand[1] && cand[1]===cand[2]){
+  const n=cand.length;
+  const stable3 = n===3 && cand[0]===cand[1] && cand[1]===cand[2];
+  const stable2 = n>=2 && cand[n-1]===cand[n-2];
+  // fold to the on-screen octave (C4–C5) so any octave on a real piano counts
+  let fm=m; while(fm<60) fm+=12; while(fm>72) fm-=12;
+  const target = idx<notes.length ? notes[idx] : null;
+  const matches = target && (fm%12)===(target.midi%12);
+  // fast path: right after a fresh strike, the expected note is accepted as soon as it sounds clean
+  // (one clear frame, or two agreeing). Anything else, including wrong notes, still needs three agreeing frames.
+  const fast = armed && matches && (lastClarity>0.9 || stable2);
+  if(stable3 || fast){
     $('heard').textContent='Hearing: '+noteLabel(m)+'  ('+Math.round(f)+' Hz)';
-    // fold to the on-screen octave (C4–C5) so any octave on a real piano counts
-    let fm=m; while(fm<60) fm+=12; while(fm>72) fm-=12;
-    const target = idx<notes.length ? notes[idx] : null;
     const isNew = armed || fm!==lastMidi;
     // a freshly struck note counts either way; a ringing tail can only ever move you forward
-    const matches = target && (fm===target.midi || (fm%12)===(target.midi%12));
     if(isNew && (armed || matches)){
       armed=false; lastMidi=fm; fireRms=rms; cand=[];
       press(fm,'mic');
