@@ -81,6 +81,7 @@
     <div id="micmsg"></div>
     <div class="meter"><div id="level"></div></div>
     <div id="heard"></div>
+    <div id="dbg" style="font-size:11px;color:#a59bb3;margin-top:2px"></div>
   </div>
 
   <p class="note">Tap the keys on screen, or switch on the microphone and play a real piano or keyboard nearby. Helpers colour-match each note to its key; switch them off for a challenge.</p>
@@ -320,7 +321,7 @@ function detectPitch(buf, sr){
 
 let micOn=false, micStream=null, analyser=null, micSrc=null, micBuf=null;
 let lastTick=0, prevRms=0, armed=true, cand=[], fireRms=0, muteUntil=0;
-const THR=0.02;
+let noise=0.003, lastMidi=-1;
 function muteMicFor(ms){ muteUntil=performance.now()+ms; cand=[]; armed=false; }
 
 async function startMic(){
@@ -332,7 +333,7 @@ async function startMic(){
     micSrc=a.createMediaStreamSource(micStream);
     analyser=a.createAnalyser(); analyser.fftSize=2048; micSrc.connect(analyser);
     micBuf=new Float32Array(analyser.fftSize);
-    micOn=true; armed=true; cand=[]; prevRms=0;
+    micOn=true; armed=true; cand=[]; prevRms=0; noise=0.003; lastMidi=-1;
     $('mic').setAttribute('aria-pressed','true'); $('mic').textContent='🎤 Listening… (tap to stop)';
     $('micmsg').textContent='Play a note on your piano. Keep other noise down.';
     requestAnimationFrame(micTick);
@@ -357,23 +358,32 @@ function micTick(){
   analyser.getFloatTimeDomainData(micBuf);
   let s=0; for(let i=0;i<micBuf.length;i++) s+=micBuf[i]*micBuf[i];
   const rms=Math.sqrt(s/micBuf.length);
-  $('level').style.width=Math.min(100,rms*700)+'%';
-  const onset = rms>THR && rms>prevRms*1.6;
+  // adaptive noise floor: learns the room's background level, so quiet pianos still register
+  if(rms<noise*2) noise=noise*0.95+rms*0.05; else noise*=1.0004;
+  const thr=Math.max(0.005, noise*3);
+  $('level').style.width=Math.min(100,rms/(thr*6)*100)+'%';
+  const onset = rms>thr && rms>prevRms*1.5;
   prevRms=rms;
+  $('dbg').textContent='level '+rms.toFixed(4)+'  ·  needs > '+thr.toFixed(4);
   if(listening || now<muteUntil) return;
-  if(rms<THR){ armed=true; cand=[]; return; }
-  if(onset && !armed){ armed=true; cand=[]; }
-  if(!armed){ if(rms<fireRms*0.5) armed=true; return; }
+  if(rms<thr){ armed=true; cand=[]; $('heard').textContent='Waiting for a note…'; return; }
+  if(onset){ armed=true; cand=[]; }
   const f=detectPitch(micBuf, ac.sampleRate); if(f<0) return;
   const m=Math.round(69+12*Math.log2(f/440));
-  if(m<52||m>88) return;
+  if(m<48||m>96) return;
   cand.push(m); if(cand.length>3) cand.shift();
   if(cand.length===3 && cand[0]===cand[1] && cand[1]===cand[2]){
-    armed=false; fireRms=rms; cand=[];
-    $('heard').textContent='Heard: '+noteLabel(m);
+    $('heard').textContent='Hearing: '+noteLabel(m)+'  ('+Math.round(f)+' Hz)';
     // fold to the on-screen octave (C4–C5) so any octave on a real piano counts
     let fm=m; while(fm<60) fm+=12; while(fm>72) fm-=12;
-    press(fm,'mic');
+    const target = idx<notes.length ? notes[idx] : null;
+    const isNew = armed || fm!==lastMidi;
+    // a freshly struck note counts either way; a ringing tail can only ever move you forward
+    const matches = target && (fm===target.midi || (fm%12)===(target.midi%12));
+    if(isNew && (armed || matches)){
+      armed=false; lastMidi=fm; fireRms=rms; cand=[];
+      press(fm,'mic');
+    }
   }
 }
 const PC=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
