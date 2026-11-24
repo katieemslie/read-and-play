@@ -49,12 +49,21 @@
   .done h2{margin:6px 0 4px}
   .done p{margin:0 0 14px;color:var(--muted)}
   .done .row{display:flex;gap:8px}
+  .who{display:flex;gap:10px;margin-bottom:10px}
+  .who button{flex:1;display:flex;align-items:center;gap:10px;border:3px solid var(--line);background:#fff;border-radius:18px;padding:8px 12px;min-height:56px;font:inherit;font-weight:800;font-size:17px;color:var(--ink);cursor:pointer}
+  .who button[aria-pressed="true"]{border-color:var(--pc);background:color-mix(in srgb,var(--pc) 12%,white)}
+  .who .av{width:36px;height:36px;border-radius:50%;background:var(--pc);color:#fff;display:grid;place-items:center;font-weight:900;font-size:18px}
+  .chip .st{color:#d79a00;margin-left:4px;letter-spacing:1px;font-size:13px}
+  #confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:11;display:none}
+  .done .tricky{font-size:13px;color:var(--muted);margin:-6px 0 14px}
   @media (prefers-reduced-motion:reduce){.key.target::after,.key.miss{animation:none}}
 </style>
 </head>
 <body>
 <div class="app">
   <h1>Read &amp; Play <small>prototype</small></h1>
+
+  <div class="who" id="who" role="group" aria-label="Who is playing?"></div>
 
   <div class="songs" id="songs" role="group" aria-label="Choose a song"></div>
 
@@ -89,10 +98,12 @@
 
 <div class="done" id="done"><div class="box">
   <div class="stars" id="stars"></div>
-  <h2>You played it!</h2>
+  <h2 id="donetitle">You played it!</h2>
   <p id="donetxt"></p>
+  <p class="tricky" id="tricky"></p>
   <div class="row"><button class="btn" id="again">Play again</button><button class="btn primary" id="next">Next song ›</button></div>
 </div></div>
+<canvas id="confetti"></canvas>
 
 <script>
 /* ---------- music data ---------- */
@@ -253,28 +264,105 @@ function press(m, src){
   const ok = m===target.midi || (src==='mic' && (m-target.midi)%12===0);
   flash(m, ok);
   if(ok){
+    if(helpers) runUsedHelpers=true;
     idx++; missesInRow=0; render();
     if(idx>=notes.length) setTimeout(finish, 450);
   } else {
     totalMiss++; missesInRow++;
+    const tn=NAME_BY_MIDI[target.midi];
+    runMiss[tn]=(runMiss[tn]||0)+1;
+    const mm=me().misses; mm[tn]=(mm[tn]||0)+1; saveStore();
     refreshKeys();
     const nm = NAME_BY_MIDI[m] ? NAME_BY_MIDI[m] : 'a black key';
     setStatus(`That was ${nm}`, missesInRow>=2 ? 'Look for the glowing key' : 'Try again — you can do it');
   }
 }
 function finish(){
+  // every note has been identified correctly to get here; stars reflect how smoothly
   const stars = totalMiss<=2 ? 3 : totalMiss<=6 ? 2 : 1;
+  const title=SONGS[songIdx].title, prof=me();
+  const rec = prof.songs[title] || (prof.songs[title]={best:0,plays:0,noHelp:0});
+  rec.plays++; rec.best=Math.max(rec.best,stars); rec.last=Date.now();
+  if(!runUsedHelpers) rec.noHelp=Math.max(rec.noHelp,stars);
+  saveStore(); renderChips();
+  const praise = stars===3 ? 'Amazing' : stars===2 ? 'Great job' : 'Well done';
+  $('donetitle').textContent = `${praise}, ${store.current}!`;
   $('stars').textContent = '★'.repeat(stars)+'☆'.repeat(3-stars);
-  $('donetxt').textContent = totalMiss===0 ? 'Every note first time!' : `${totalMiss} wobble${totalMiss===1?'':'s'} on the way — nice work.`;
+  let msg = totalMiss===0 ? 'Every note first time!' : `${totalMiss} wobble${totalMiss===1?'':'s'} on the way — you got there.`;
+  if(!runUsedHelpers) msg += ' 🏅 And no helpers!';
+  $('donetxt').textContent = msg;
+  const worst = Object.entries(runMiss).sort((a,b)=>b[1]-a[1])[0];
+  $('tricky').textContent = worst ? `Tricky note this time: ${worst[0]}` : '';
   $('done').classList.add('show');
-  [60,64,67,72].forEach((m,i)=>setTimeout(()=>tone(m,0.7),i*140));
+  confetti(stars===3);
+  [60,64,67,72,76].forEach((m,i)=>setTimeout(()=>tone(m>72?72:m,0.7),i*140));
 }
 function loadSong(i){
-  stopListen();
+  stopListen(); stopConfetti();
   songIdx=i; notes=parseSong(SONGS[i]); idx=0; totalMiss=0; missesInRow=0;
+  runUsedHelpers=false; runMiss={};
   $('done').classList.remove('show');
-  document.querySelectorAll('#songs .chip').forEach((c,k)=>c.setAttribute('aria-pressed', k===i));
+  renderChips();
   render();
+}
+
+/* ---------- profiles & progress (stored on this device only) ---------- */
+const PROFILES=[{name:'Ayla',color:'#8e4ec6'},{name:'Eden',color:'#1f9d8a'}];
+let store={current:PROFILES[0].name,data:{}};
+let runUsedHelpers=false, runMiss={};
+function loadStore(){
+  try{ const s=JSON.parse(localStorage.getItem('readplay.v1')||'null'); if(s&&s.data) store=s; }catch(e){}
+  PROFILES.forEach(p=>{ if(!store.data[p.name]) store.data[p.name]={songs:{},misses:{}}; });
+  if(!store.data[store.current]) store.current=PROFILES[0].name;
+}
+function saveStore(){ try{ localStorage.setItem('readplay.v1',JSON.stringify(store)); }catch(e){} }
+function me(){ return store.data[store.current]; }
+function renderWho(){
+  const w=$('who'); w.innerHTML='';
+  PROFILES.forEach(p=>{
+    const b=document.createElement('button'); b.style.setProperty('--pc',p.color);
+    b.setAttribute('aria-pressed', p.name===store.current);
+    b.innerHTML=`<span class="av">${p.name[0]}</span>${p.name}`;
+    b.addEventListener('click',()=>{ audio(); store.current=p.name; saveStore(); renderWho(); loadSong(songIdx); });
+    w.appendChild(b);
+  });
+}
+function renderChips(){
+  const box=$('songs'); box.innerHTML='';
+  SONGS.forEach((s,i)=>{
+    const r=me().songs[s.title];
+    const st = r ? `<span class="st">${'★'.repeat(r.best)}${'☆'.repeat(3-r.best)}${r.noHelp?' 🏅':''}</span>` : '';
+    const b=document.createElement('button'); b.className='chip'; b.setAttribute('aria-pressed', i===songIdx);
+    b.innerHTML=`${s.title}${st}`;
+    b.addEventListener('click',()=>{ audio(); loadSong(i); });
+    box.appendChild(b);
+  });
+}
+
+/* ---------- confetti ---------- */
+let confettiRaf=null;
+function stopConfetti(){ cancelAnimationFrame(confettiRaf); const cv=$('confetti'); cv.style.display='none'; }
+function confetti(big){
+  const cv=$('confetti');
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const dpr=window.devicePixelRatio||1, ctx=cv.getContext('2d');
+  cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; cv.style.display='block';
+  const cols=['#e5484d','#f08c1a','#e0a800','#2fa84f','#2f7de1','#8e4ec6','#e5589b'];
+  const N=big?240:150, ps=[];
+  for(let i=0;i<N;i++) ps.push({x:Math.random()*cv.width,y:-Math.random()*cv.height*0.7,w:(6+Math.random()*7)*dpr,h:(9+Math.random()*10)*dpr,
+    vx:(Math.random()-0.5)*2*dpr,vy:(2+Math.random()*3.5)*dpr,r:Math.random()*6.28,vr:(Math.random()-0.5)*0.3,c:cols[i%cols.length]});
+  const t0=performance.now(); cancelAnimationFrame(confettiRaf);
+  (function frame(){
+    const el=performance.now()-t0; ctx.clearRect(0,0,cv.width,cv.height); let alive=false;
+    ps.forEach(p=>{
+      p.x+=p.vx+Math.sin(p.y/40)*0.6*dpr; p.y+=p.vy; p.r+=p.vr;
+      if(p.y<cv.height+20*dpr) alive=true;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle=p.c;
+      ctx.globalAlpha = el>4500 ? Math.max(0,1-(el-4500)/800) : 1;
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+    });
+    if(alive && el<5300) confettiRaf=requestAnimationFrame(frame); else stopConfetti();
+  })();
 }
 
 /* ---------- "Listen first" playback ---------- */
@@ -390,11 +478,6 @@ const PC=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 function noteLabel(m){ return PC[((m%12)+12)%12]; }
 
 /* ---------- wiring ---------- */
-SONGS.forEach((s,i)=>{
-  const b=document.createElement('button'); b.className='chip'; b.textContent=s.title;
-  b.addEventListener('click',()=>{ audio(); loadSong(i); });
-  $('songs').appendChild(b);
-});
 $('listen').addEventListener('click',startListen);
 $('mic').addEventListener('click',()=>{ micOn?stopMic():startMic(); });
 $('helpers').addEventListener('click',e=>{ helpers=!helpers; e.currentTarget.setAttribute('aria-pressed',helpers); render(); });
@@ -402,6 +485,8 @@ $('names').addEventListener('click',e=>{ showNames=!showNames; e.currentTarget.s
 $('restart').addEventListener('click',()=>loadSong(songIdx));
 $('again').addEventListener('click',()=>loadSong(songIdx));
 $('next').addEventListener('click',()=>loadSong((songIdx+1)%SONGS.length));
+loadStore();
+renderWho();
 buildKeyboard();
 loadSong(0);
 </script>
