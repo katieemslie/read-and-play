@@ -29,6 +29,9 @@
   .key.white{height:100%;background:#fff;border:2px solid #cfc6d8;border-radius:0 0 12px 12px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px;font-weight:800;font-size:18px;color:#8b8298;transition:background .08s}
   .key.black{height:60%;background:#2b2438;border-radius:0 0 8px 8px;z-index:2;border:2px solid #1b1626}
   .key.lit{background:var(--c)!important;color:#fff}
+  .kb.colored .key.white .lab:not(:empty){background:var(--c);color:var(--t,#fff);width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:20px}
+  .kb.colored .key.white.lit .lab{box-shadow:0 0 0 3px #fff}
+  .badge{display:inline-grid;place-items:center;width:1.35em;height:1.35em;border-radius:50%;font-size:.92em;margin-left:4px;vertical-align:middle}
   .key.black.lit{background:#6a5a86!important}
   .key.target::after{content:"";position:absolute;inset:3px;border-radius:0 0 10px 10px;border:4px solid var(--c);animation:pulse 1s ease-in-out infinite;pointer-events:none}
   .key.miss{animation:shake .28s}
@@ -84,6 +87,7 @@
     .kbwrap{margin:0}
     .kb{height:clamp(170px,31dvh,300px)}
     .key.white{font-size:22px;padding-bottom:14px}
+    .kb.colored .key.white .lab:not(:empty){width:50px;height:50px;font-size:24px}
   }
   @media (prefers-reduced-motion:reduce){.key.target::after,.key.miss{animation:none}}
 </style>
@@ -252,6 +256,7 @@ function buildKeyboard(){
     if(k.w){
       el.className='key white'; el.style.left=(wi*12.5)+'%'; el.style.width='12.5%';
       el.style.setProperty('--c', INFO[k.m===72?'c':NAME_BY_MIDI[k.m]].color);
+      el.style.setProperty('--t', NAME_BY_MIDI[k.m]==='E' ? '#2b2438' : '#fff');
       const lab=document.createElement('span'); lab.className='lab'; el.appendChild(lab);
       wi++;
     } else {
@@ -264,6 +269,7 @@ function buildKeyboard(){
 }
 function keyEl(m){ return $('kb').querySelector(`[data-midi="${m}"]`); }
 function refreshKeys(){
+  $('kb').classList.toggle('colored', helpers);
   const target = (!listening && idx<notes.length) ? notes[idx] : null;
   $('kb').querySelectorAll('.key').forEach(el=>{
     const m=+el.dataset.midi;
@@ -284,7 +290,7 @@ function flash(m, ok){
 
 /* ---------- lesson logic ---------- */
 function setStatus(main, sub){
-  $('status').innerHTML = main + (sub?`<span class="sub">${sub}</span>`:'');
+  $('status').innerHTML = `<div>${main}</div>` + (sub?`<span class="sub">${sub}</span>`:'');
 }
 function updateStatus(){
   if(listening){ setStatus('Listen…','Watch the notes and keys light up'); return; }
@@ -292,7 +298,8 @@ function updateStatus(){
   const n=notes[idx];
   const nm = NAME_BY_MIDI[n.midi];
   const hold = n.beats>1 ? ` · hold for ${n.beats} beats` : '';
-  if(showNames) setStatus(`Play the note ${nm}`, `Note ${idx+1} of ${notes.length}${hold}`);
+  const badge = helpers ? `<span class="badge" style="background:${INFO[nm].color};color:${nm==='E'?'#2b2438':'#fff'}">${nm}</span>` : nm;
+  if(showNames) setStatus(`Play the note ${badge}`, `Note ${idx+1} of ${notes.length}${hold}`);
   else setStatus('Find this note on the keys', `Note ${idx+1} of ${notes.length}${hold}`);
 }
 function render(){ renderStaff(); refreshKeys(); updateStatus(); $('prog').firstElementChild.style.width=(notes.length?Math.min(100,idx/notes.length*100):0)+'%'; }
