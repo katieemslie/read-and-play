@@ -89,6 +89,8 @@
   <div class="mic" id="micbox" hidden>
     <div id="micmsg"></div>
     <div class="meter"><div id="level"></div></div>
+    <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:700">Sensitivity
+      <input type="range" id="sens" min="1" max="12" value="6" style="flex:1"></label>
     <div id="heard"></div>
     <div id="dbg" style="font-size:11px;color:#a59bb3;margin-top:2px"></div>
   </div>
@@ -388,10 +390,10 @@ function startListen(){
 
 /* ---------- microphone: pitch detection ---------- */
 // PITCH-START
-function detectPitch(buf, sr){
+function detectPitch(buf, sr, minRms){
   const SIZE=buf.length; let rms=0, peak=0;
   for(let i=0;i<SIZE;i++){ rms+=buf[i]*buf[i]; if(Math.abs(buf[i])>peak) peak=Math.abs(buf[i]); }
-  rms=Math.sqrt(rms/SIZE); if(rms<0.01) return -1;
+  rms=Math.sqrt(rms/SIZE); if(rms<(minRms||0.002)) return -1;
   const thres=0.2*peak; let r1=0, r2=SIZE-1;
   for(let i=0;i<SIZE/2;i++){ if(Math.abs(buf[i])<thres){ r1=i; break; } }
   for(let i=1;i<SIZE/2;i++){ if(Math.abs(buf[SIZE-i])<thres){ r2=SIZE-i; break; } }
@@ -409,7 +411,7 @@ function detectPitch(buf, sr){
 
 let micOn=false, micStream=null, analyser=null, micSrc=null, micBuf=null;
 let lastTick=0, prevRms=0, armed=true, cand=[], fireRms=0, muteUntil=0;
-let noise=0.003, lastMidi=-1;
+let noise=0.003, lastMidi=-1, sens=6;
 function muteMicFor(ms){ muteUntil=performance.now()+ms; cand=[]; armed=false; }
 
 async function startMic(){
@@ -448,7 +450,7 @@ function micTick(){
   const rms=Math.sqrt(s/micBuf.length);
   // adaptive noise floor: learns the room's background level, so quiet pianos still register
   if(rms<noise*2) noise=noise*0.95+rms*0.05; else noise*=1.0004;
-  const thr=Math.max(0.005, noise*3);
+  const thr=Math.max(0.0012, noise*2.5)*(4/sens);
   $('level').style.width=Math.min(100,rms/(thr*6)*100)+'%';
   const onset = rms>thr && rms>prevRms*1.5;
   prevRms=rms;
@@ -456,7 +458,7 @@ function micTick(){
   if(listening || now<muteUntil) return;
   if(rms<thr){ armed=true; cand=[]; $('heard').textContent='Waiting for a note…'; return; }
   if(onset){ armed=true; cand=[]; }
-  const f=detectPitch(micBuf, ac.sampleRate); if(f<0) return;
+  const f=detectPitch(micBuf, ac.sampleRate, 0.0005); if(f<0) return;
   const m=Math.round(69+12*Math.log2(f/440));
   if(m<48||m>96) return;
   cand.push(m); if(cand.length>3) cand.shift();
@@ -479,6 +481,7 @@ function noteLabel(m){ return PC[((m%12)+12)%12]; }
 
 /* ---------- wiring ---------- */
 $('listen').addEventListener('click',startListen);
+$('sens').addEventListener('input',e=>{ sens=+e.target.value; });
 $('mic').addEventListener('click',()=>{ micOn?stopMic():startMic(); });
 $('helpers').addEventListener('click',e=>{ helpers=!helpers; e.currentTarget.setAttribute('aria-pressed',helpers); render(); });
 $('names').addEventListener('click',e=>{ showNames=!showNames; e.currentTarget.setAttribute('aria-pressed',showNames); render(); });
